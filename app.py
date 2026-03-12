@@ -9,7 +9,7 @@ import os
 
 from rag import store_memory, retrieve_memory
 
-OPENROUTER_API_KEY = "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"
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 app = FastAPI()
 
