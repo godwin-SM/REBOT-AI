@@ -6,6 +6,10 @@ from pypdf import PdfReader
 from docx import Document
 import requests
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env (e.g., SUPABASE_URL / SUPABASE_KEY)
+load_dotenv()
 
 # Supabase
 from supabase import create_client
@@ -201,5 +205,11 @@ async def upload(file: UploadFile = File(...)):
         reply = f"Upload succeeded but AI analysis failed: {str(e)}"
 
     return {"reply": reply}
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
 
 

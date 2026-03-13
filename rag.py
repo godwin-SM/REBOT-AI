@@ -3,6 +3,10 @@ from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
 from supabase import create_client
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env (e.g., SUPABASE_URL / SUPABASE_KEY)
+load_dotenv()
 
 # -----------------------
 # EMBEDDING MODEL
@@ -40,9 +44,6 @@ def store_memory(text):
         embeddings=[embedding],
         ids=[str(hash(text))]
     )
-
-    # Force save to disk
-    client.persist()
 
     # Store in Supabase
     try:
