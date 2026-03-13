@@ -1,23 +1,62 @@
 import chromadb
+from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
+from supabase import create_client
+import os
 
+# -----------------------
+# EMBEDDING MODEL
+# -----------------------
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
-client = chromadb.Client()
+# -----------------------
+# CHROMA VECTOR DB (Persistent)
+# -----------------------
+client = chromadb.Client(
+    Settings(persist_directory="vector_db")
+)
+
 collection = client.get_or_create_collection("rebot_memory")
 
+# -----------------------
+# SUPABASE CONNECTION
+# -----------------------
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+# -----------------------
+# STORE MEMORY
+# -----------------------
 def store_memory(text):
 
     embedding = model.encode(text).tolist()
 
+    # Store in ChromaDB
     collection.add(
         documents=[text],
         embeddings=[embedding],
         ids=[str(hash(text))]
     )
 
+    # Force save to disk
+    client.persist()
 
+    # Store in Supabase
+    try:
+        supabase.table("memory").insert({
+            "content": text,
+            "embedding": embedding
+        }).execute()
+    except Exception as e:
+        print("Supabase error:", e)
+
+
+# -----------------------
+# RETRIEVE MEMORY
+# -----------------------
 def retrieve_memory(query):
 
     embedding = model.encode(query).tolist()
@@ -27,4 +66,7 @@ def retrieve_memory(query):
         n_results=3
     )
 
-    return results["documents"][0]
+    if results["documents"] and len(results["documents"][0]) > 0:
+        return "\n".join(results["documents"][0])
+
+    return ""

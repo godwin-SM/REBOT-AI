@@ -7,9 +7,20 @@ from docx import Document
 import requests
 import os
 
+# Supabase
+from supabase import create_client
+
 from rag import store_memory, retrieve_memory
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+
+# -----------------------
+# SUPABASE CONNECTION
+# -----------------------
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = FastAPI()
 
@@ -79,8 +90,17 @@ async def chat(data: dict):
     except Exception as e:
         reply = f"Error: {str(e)}"
 
-    # Store conversation memory
+    # Store conversation memory locally
     store_memory(user_message + " " + reply)
+
+    # Store chat history in Supabase
+    try:
+        supabase.table("chat_history").insert({
+            "user_message": user_message,
+            "bot_reply": reply
+        }).execute()
+    except Exception as e:
+        print("Supabase error:", e)
 
     return {"reply": reply}
 
@@ -175,10 +195,7 @@ async def upload(file: UploadFile = File(...)):
         if "choices" not in result:
             return {"reply": f"API error: {result}"}
 
-        if "choices" in result:
-            reply = result["choices"][0]["message"]["content"]
-        else:
-            reply = f"API Error: {result}"
+        reply = result["choices"][0]["message"]["content"]
 
     except Exception as e:
         reply = f"Upload succeeded but AI analysis failed: {str(e)}"
@@ -191,4 +208,4 @@ async def upload(file: UploadFile = File(...)):
 # -----------------------
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
