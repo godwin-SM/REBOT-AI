@@ -41,6 +41,11 @@ app = FastAPI()
 async def startup_message():
     port = os.environ.get("PORT", 8000)
     print(f"\n✓ Server is running at http://127.0.0.1:{port}\n")
+    print("✓ FastAPI app initialized successfully")
+    if supabase:
+        print("✓ Supabase connected")
+    else:
+        print("⚠ Supabase not configured (offline mode)")
 
 DOCUMENT_CONTEXT = ""
 
@@ -50,6 +55,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 @app.get("/")
 def read_root():
     return FileResponse("static/index.html")
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "message": "Server is running"}
 
 # Enable CORS
 app.add_middleware(

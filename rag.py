@@ -9,9 +9,21 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # -----------------------
-# EMBEDDING MODEL
+# EMBEDDING MODEL (Lazy Load)
 # -----------------------
-model = SentenceTransformer("all-MiniLM-L6-v2")
+model = None
+
+def get_model():
+    global model
+    if model is None:
+        try:
+            print("Loading embedding model...")
+            model = SentenceTransformer("all-MiniLM-L6-v2")
+            print("Embedding model loaded successfully")
+        except Exception as e:
+            print(f"Error loading embedding model: {e}")
+            raise
+    return model
 
 # -----------------------
 # CHROMA VECTOR DB (Persistent)
@@ -42,7 +54,7 @@ if SUPABASE_URL and SUPABASE_KEY:
 # -----------------------
 def store_memory(text):
 
-    embedding = model.encode(text).tolist()
+    embedding = get_model().encode(text).tolist()
 
     # Store in ChromaDB
     collection.add(
@@ -67,7 +79,7 @@ def store_memory(text):
 # -----------------------
 def retrieve_memory(query):
 
-    embedding = model.encode(query).tolist()
+    embedding = get_model().encode(query).tolist()
 
     results = collection.query(
         query_embeddings=[embedding],
