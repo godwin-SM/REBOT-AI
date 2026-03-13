@@ -8,5 +8,4 @@ pypdf
 python-docx
 numpy
 supabase
-sentence-transformers
 torch
