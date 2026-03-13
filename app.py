@@ -201,3 +201,11 @@ async def upload(file: UploadFile = File(...)):
         reply = f"Upload succeeded but AI analysis failed: {str(e)}"
 
     return {"reply": reply}
+
+if __name__ == "__main__":
+    import uvicorn
+    import os
+
+    port = int(os.environ.get("PORT", 8000))
+
+    uvicorn.run(app, host="0.0.0.0", port=port)
