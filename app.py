@@ -36,6 +36,12 @@ else:
 
 app = FastAPI()
 
+# Print local server URL on startup
+@app.on_event("startup")
+async def startup_message():
+    port = os.environ.get("PORT", 8000)
+    print(f"\n✓ Server is running at http://127.0.0.1:{port}\n")
+
 DOCUMENT_CONTEXT = ""
 
 # Serve static files
