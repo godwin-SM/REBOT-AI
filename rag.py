@@ -28,7 +28,13 @@ collection = client.get_or_create_collection("rebot_memory")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Initialize Supabase only if credentials are available
+supabase = None
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        print(f"Warning: Could not initialize Supabase in rag.py: {e}")
 
 
 # -----------------------
@@ -46,13 +52,14 @@ def store_memory(text):
     )
 
     # Store in Supabase
-    try:
-        supabase.table("memory").insert({
-            "content": text,
-            "embedding": embedding
-        }).execute()
-    except Exception as e:
-        print("Supabase error:", e)
+    if supabase:
+        try:
+            supabase.table("memory").insert({
+                "content": text,
+                "embedding": embedding
+            }).execute()
+        except Exception as e:
+            print("Supabase error:", e)
 
 
 # -----------------------

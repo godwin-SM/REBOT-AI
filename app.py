@@ -24,7 +24,15 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+# Initialize Supabase only if credentials are available
+supabase = None
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        print(f"Warning: Could not initialize Supabase: {e}")
+else:
+    print("Warning: SUPABASE_URL and SUPABASE_KEY not set. Supabase features will be disabled.")
 
 app = FastAPI()
 
@@ -98,13 +106,14 @@ async def chat(data: dict):
     store_memory(user_message + " " + reply)
 
     # Store chat history in Supabase
-    try:
-        supabase.table("chat_history").insert({
-            "user_message": user_message,
-            "bot_reply": reply
-        }).execute()
-    except Exception as e:
-        print("Supabase error:", e)
+    if supabase:
+        try:
+            supabase.table("chat_history").insert({
+                "user_message": user_message,
+                "bot_reply": reply
+            }).execute()
+        except Exception as e:
+            print("Supabase error:", e)
 
     return {"reply": reply}
 
