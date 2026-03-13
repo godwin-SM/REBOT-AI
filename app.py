@@ -201,5 +201,3 @@ async def upload(file: UploadFile = File(...)):
         reply = f"Upload succeeded but AI analysis failed: {str(e)}"
 
     return {"reply": reply}
-
-
