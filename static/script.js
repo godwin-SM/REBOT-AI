@@ -6,18 +6,34 @@ window.onload = function () {
 chat = document.getElementById("chat");
 msgInput = document.getElementById("msg");
 
-let history = JSON.parse(localStorage.getItem("chat")) || [];
+/* Hide loading screen */
+
+const loader = document.getElementById("loader");
+
+if(loader){
+setTimeout(() => {
+
+loader.style.opacity = "0";
+
+setTimeout(()=>{
+loader.style.display = "none";
+},500);
+
+},2000);
+}
 
 /* Load old chat */
+
+let history = JSON.parse(localStorage.getItem("chat")) || [];
+
 history.forEach(item => {
-
 addMessage(item.role, item.content);
-
 });
 
 chat.scrollTop = chat.scrollHeight;
 
 /* Enter key to send */
+
 msgInput.addEventListener("keypress", function(event){
 if(event.key === "Enter"){
 send();
@@ -34,7 +50,8 @@ function addMessage(role, content){
 
 let className = role === "user" ? "user" : "bot";
 
-/* Format AI text for better readability */
+/* Format AI text */
+
 content = content
 .replace(/\n\n/g,"<br><br>")
 .replace(/\n/g,"<br>")
@@ -70,7 +87,7 @@ chat.scrollTop = chat.scrollHeight;
 let typing = document.createElement("div");
 typing.className = "message bot";
 typing.id = "typing";
-typing.innerText = "REBOT is typing...";
+typing.innerText = "REBOT is thinking...";
 chat.appendChild(typing);
 
 chat.scrollTop = chat.scrollHeight;
@@ -92,11 +109,16 @@ history:history
 
 const data = await response.json();
 
-document.getElementById("typing").remove();
+/* remove typing */
+
+let typingEl = document.getElementById("typing");
+if(typingEl) typingEl.remove();
 
 addMessage("assistant", data.reply);
 
 chat.scrollTop = chat.scrollHeight;
+
+/* save history */
 
 history.push({
 role:"user",
@@ -113,9 +135,10 @@ localStorage.setItem("chat", JSON.stringify(history));
 }
 catch(err){
 
-document.getElementById("typing").remove();
+let typingEl = document.getElementById("typing");
+if(typingEl) typingEl.remove();
 
-chat.innerHTML += `<div class="message bot">Error connecting to server.</div>`;
+chat.innerHTML += `<div class="message bot">⚠️ Error connecting to server.</div>`;
 
 }
 
