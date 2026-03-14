@@ -73,16 +73,18 @@ def get_supabase():
 # -----------------------
 # STORE MEMORY
 # -----------------------
-def store_memory(text):
+def store_memory(text, user_id=None):
 
     embedding = get_model().encode(text).tolist()
 
     # Store in ChromaDB
     coll = get_collection()
+    doc_id = f"{user_id}_{hash(text)}" if user_id else str(hash(text))
     coll.add(
         documents=[text],
         embeddings=[embedding],
-        ids=[str(hash(text))]
+        ids=[doc_id],
+        metadatas=[{"user_id": user_id}] if user_id else [{}]
     )
 
     # Store in Supabase
@@ -90,6 +92,7 @@ def store_memory(text):
     if sb:
         try:
             sb.table("memory").insert({
+                "user_id": user_id,
                 "content": text,
                 "embedding": embedding
             }).execute()
@@ -100,15 +103,24 @@ def store_memory(text):
 # -----------------------
 # RETRIEVE MEMORY
 # -----------------------
-def retrieve_memory(query):
+def retrieve_memory(query, user_id=None):
 
     embedding = get_model().encode(query).tolist()
 
     coll = get_collection()
-    results = coll.query(
-        query_embeddings=[embedding],
-        n_results=3
-    )
+    
+    # Query ChromaDB with user filter
+    if user_id:
+        results = coll.query(
+            query_embeddings=[embedding],
+            n_results=3,
+            where={"user_id": user_id}
+        )
+    else:
+        results = coll.query(
+            query_embeddings=[embedding],
+            n_results=3
+        )
 
     if results["documents"] and len(results["documents"][0]) > 0:
         return "\n".join(results["documents"][0])

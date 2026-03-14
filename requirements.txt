@@ -10,3 +10,9 @@ python-docx
 numpy
 supabase
 python-dotenv
+PyJWT
+google-auth>=2.25.2
+google-auth-httplib2
+google-auth-oauthlib
+google-auth-httplib2>=0.2.0
+httpx
