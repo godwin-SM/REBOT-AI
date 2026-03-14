@@ -36,17 +36,6 @@ else:
 
 app = FastAPI()
 
-# Print local server URL on startup
-@app.on_event("startup")
-async def startup_message():
-    port = os.environ.get("PORT", 8000)
-    print(f"\n✓ Server is running at http://127.0.0.1:{port}\n")
-    print("✓ FastAPI app initialized successfully")
-    if supabase:
-        print("✓ Supabase connected")
-    else:
-        print("⚠ Supabase not configured (offline mode)")
-
 DOCUMENT_CONTEXT = ""
 
 # Serve static files
@@ -229,6 +218,7 @@ async def upload(file: UploadFile = File(...)):
         reply = f"Upload succeeded but AI analysis failed: {str(e)}"
 
     return {"reply": reply}
+
 
 if __name__ == "__main__":
     import uvicorn
