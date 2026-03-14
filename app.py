@@ -11,28 +11,28 @@ from dotenv import load_dotenv
 # Load environment variables from .env (e.g., SUPABASE_URL / SUPABASE_KEY)
 load_dotenv()
 
-# Supabase
-from supabase import create_client
-
+# Import rag functions (they are now lazy-loaded internally)
 from rag import store_memory, retrieve_memory
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 # -----------------------
-# SUPABASE CONNECTION
+# SUPABASE CONNECTION (Lazy Load)
 # -----------------------
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# Initialize Supabase only if credentials are available
 supabase = None
-if SUPABASE_URL and SUPABASE_KEY:
-    try:
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-    except Exception as e:
-        print(f"Warning: Could not initialize Supabase: {e}")
-else:
-    print("Warning: SUPABASE_URL and SUPABASE_KEY not set. Supabase features will be disabled.")
+
+def get_supabase():
+    global supabase
+    if supabase is None and SUPABASE_URL and SUPABASE_KEY:
+        try:
+            from supabase import create_client
+            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        except Exception as e:
+            print(f"Warning: Could not initialize Supabase: {e}")
+    return supabase
 
 app = FastAPI()
 
@@ -110,9 +110,10 @@ async def chat(data: dict):
     store_memory(user_message + " " + reply)
 
     # Store chat history in Supabase
-    if supabase:
+    sb = get_supabase()
+    if sb:
         try:
-            supabase.table("chat_history").insert({
+            sb.table("chat_history").insert({
                 "user_message": user_message,
                 "bot_reply": reply
             }).execute()

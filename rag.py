@@ -1,7 +1,3 @@
-import chromadb
-from chromadb.config import Settings
-from sentence_transformers import SentenceTransformer
-from supabase import create_client
 import os
 from dotenv import load_dotenv
 
@@ -17,6 +13,7 @@ def get_model():
     global model
     if model is None:
         try:
+            from sentence_transformers import SentenceTransformer
             print("Loading embedding model...")
             model = SentenceTransformer("all-MiniLM-L6-v2")
             print("Embedding model loaded successfully")
@@ -26,13 +23,27 @@ def get_model():
     return model
 
 # -----------------------
-# CHROMA VECTOR DB (Persistent)
+# CHROMA VECTOR DB (Lazy Load - Persistent)
 # -----------------------
-client = chromadb.Client(
-    Settings(persist_directory="vector_db")
-)
+client = None
+collection = None
 
-collection = client.get_or_create_collection("rebot_memory")
+def get_collection():
+    global client, collection
+    if client is None:
+        try:
+            import chromadb
+            from chromadb.config import Settings
+            print("Initializing ChromaDB...")
+            client = chromadb.Client(
+                Settings(persist_directory="vector_db")
+            )
+            collection = client.get_or_create_collection("rebot_memory")
+            print("ChromaDB initialized successfully")
+        except Exception as e:
+            print(f"Error initializing ChromaDB: {e}")
+            raise
+    return collection
 
 # -----------------------
 # SUPABASE CONNECTION
@@ -40,13 +51,18 @@ collection = client.get_or_create_collection("rebot_memory")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-# Initialize Supabase only if credentials are available
+# Initialize Supabase only if credentials are available (Lazy Load)
 supabase = None
-if SUPABASE_URL and SUPABASE_KEY:
-    try:
-        supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-    except Exception as e:
-        print(f"Warning: Could not initialize Supabase in rag.py: {e}")
+
+def get_supabase():
+    global supabase
+    if supabase is None and SUPABASE_URL and SUPABASE_KEY:
+        try:
+            from supabase import create_client
+            supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        except Exception as e:
+            print(f"Warning: Could not initialize Supabase in rag.py: {e}")
+    return supabase
 
 
 # -----------------------
@@ -57,16 +73,18 @@ def store_memory(text):
     embedding = get_model().encode(text).tolist()
 
     # Store in ChromaDB
-    collection.add(
+    coll = get_collection()
+    coll.add(
         documents=[text],
         embeddings=[embedding],
         ids=[str(hash(text))]
     )
 
     # Store in Supabase
-    if supabase:
+    sb = get_supabase()
+    if sb:
         try:
-            supabase.table("memory").insert({
+            sb.table("memory").insert({
                 "content": text,
                 "embedding": embedding
             }).execute()
@@ -81,7 +99,8 @@ def retrieve_memory(query):
 
     embedding = get_model().encode(query).tolist()
 
-    results = collection.query(
+    coll = get_collection()
+    results = coll.query(
         query_embeddings=[embedding],
         n_results=3
     )
