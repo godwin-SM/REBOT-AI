@@ -6,6 +6,7 @@ from pypdf import PdfReader
 from docx import Document
 import requests
 import os
+import asyncio
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
@@ -19,30 +20,18 @@ from rag import store_memory, retrieve_memory, get_model, get_collection
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 # ---------
-# LIFESPAN STARTUP
+# LIFESPAN & EXECUTOR
 # ---------
 executor = ThreadPoolExecutor(max_workers=2)
 
-def _init_models():
-    """Initialize models in background"""
-    try:
-        print("Pre-loading models at startup...")
-        get_model()
-        get_collection()
-        print("Models pre-loaded successfully!")
-    except Exception as e:
-        print(f"Warning: Failed to pre-load models: {e}")
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Initialize models in thread pool
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(executor, _init_models)
+    # Startup: App is ready immediately
+    # Models will lazy-load on first request
+    print("REBOT AI server starting...")
     yield
-    # Shutdown
-    executor.shutdown(wait=False)
-
-import asyncio
+    # Shutdown: Clean up executor
+    executor.shutdown(wait=True)
 
 # -----------------------
 # SUPABASE CONNECTION (Lazy Load)
@@ -62,7 +51,7 @@ def get_supabase():
             print(f"Warning: Could not initialize Supabase: {e}")
     return supabase
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, title="REBOT AI")
 
 DOCUMENT_CONTEXT = ""
 
@@ -100,9 +89,15 @@ async def chat(data: dict):
     if not user_message:
         return {"reply": "Please send a message."}
 
-    # Retrieve document memory (run in thread pool)
+    # Retrieve document memory (run in thread pool to avoid blocking)
     loop = asyncio.get_event_loop()
-    context = await loop.run_in_executor(executor, retrieve_memory, user_message)
+    try:
+        context = await asyncio.wait_for(
+            loop.run_in_executor(executor, retrieve_memory, user_message),
+            timeout=30.0
+        )
+    except asyncio.TimeoutError:
+        context = ""
 
     messages = [
         {"role": "system", "content": "You are REBOT AI, a helpful assistant."},
@@ -135,7 +130,7 @@ async def chat(data: dict):
     except Exception as e:
         reply = f"Error: {str(e)}"
 
-    # Store conversation memory locally (run in thread pool, don't await)
+    # Store conversation memory locally (non-blocking background task)
     loop.run_in_executor(executor, store_memory, user_message + " " + reply)
 
     # Store chat history in Supabase

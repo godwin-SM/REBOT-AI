@@ -2,10 +2,13 @@ services:
   - type: web
     name: rebot-ai
     runtime: python
-    buildCommand: "pip install -r requirements.txt"
+    pythonVersion: "3.12"
+    buildCommand: "pip install --no-cache-dir -r requirements.txt"
     startCommand: "uvicorn app:app --host 0.0.0.0 --port $PORT"
     envVars:
-      - key: PYTHON_VERSION
-        value: "3.11"
+      - key: PYTHONOPTIMIZE
+        value: "2"
+      - key: PYTHONDONTWRITEBYTECODE
+        value: "1"
     healthCheckPath: /health
-    healthCheckTimeout: 120
+    healthCheckStartupTimeout: 120

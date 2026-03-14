@@ -14,8 +14,13 @@ def get_model():
     if model is None:
         try:
             from sentence_transformers import SentenceTransformer
-            print("Loading embedding model...")
-            model = SentenceTransformer("all-MiniLM-L6-v2")
+            print("Loading lightweight embedding model...")
+            # Use smaller model: ~80MB instead of 140MB
+            # This model is optimized for speed and size while maintaining quality
+            model = SentenceTransformer(
+                "multi-qa-MiniLM-L6-cos-v1",
+                device="cpu"
+            )
             print("Embedding model loaded successfully")
         except Exception as e:
             print(f"Error loading embedding model: {e}")

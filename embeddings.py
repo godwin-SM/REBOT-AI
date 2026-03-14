@@ -10,8 +10,12 @@ def get_model():
     global model
     if model is None:
         from sentence_transformers import SentenceTransformer
-        print("Loading embedding model...")
-        model = SentenceTransformer("all-MiniLM-L6-v2")
+        print("Loading lightweight embedding model...")
+        # Use smaller model: ~80MB instead of 140MB
+        model = SentenceTransformer(
+            "multi-qa-MiniLM-L6-cos-v1",
+            device="cpu"
+        )
         print("Embedding model loaded successfully")
     return model
 

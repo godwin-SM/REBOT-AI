@@ -1,0 +1,16 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.pytest_cache
+.env
+vector_db/*
+uploads/*
+*.log
+.DS_Store
+node_modules
+.vscode
+.idea
+*.code-workspace

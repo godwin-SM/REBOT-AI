@@ -1,8 +1,8 @@
 fastapi
-uvicorn
 uvicorn[standard]
 chromadb
 sentence-transformers
+onnxruntime
 requests
 python-multipart
 pypdf
@@ -10,4 +10,3 @@ python-docx
 numpy
 supabase
 python-dotenv
-torch
