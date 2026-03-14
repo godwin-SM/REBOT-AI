@@ -7,14 +7,42 @@ from docx import Document
 import requests
 import os
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
+from concurrent.futures import ThreadPoolExecutor
 
 # Load environment variables from .env (e.g., SUPABASE_URL / SUPABASE_KEY)
 load_dotenv()
 
 # Import rag functions (they are now lazy-loaded internally)
-from rag import store_memory, retrieve_memory
+from rag import store_memory, retrieve_memory, get_model, get_collection
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+
+# ---------
+# LIFESPAN STARTUP
+# ---------
+executor = ThreadPoolExecutor(max_workers=2)
+
+def _init_models():
+    """Initialize models in background"""
+    try:
+        print("Pre-loading models at startup...")
+        get_model()
+        get_collection()
+        print("Models pre-loaded successfully!")
+    except Exception as e:
+        print(f"Warning: Failed to pre-load models: {e}")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize models in thread pool
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(executor, _init_models)
+    yield
+    # Shutdown
+    executor.shutdown(wait=False)
+
+import asyncio
 
 # -----------------------
 # SUPABASE CONNECTION (Lazy Load)
@@ -34,7 +62,7 @@ def get_supabase():
             print(f"Warning: Could not initialize Supabase: {e}")
     return supabase
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 
 DOCUMENT_CONTEXT = ""
 
@@ -72,8 +100,9 @@ async def chat(data: dict):
     if not user_message:
         return {"reply": "Please send a message."}
 
-    # Retrieve document memory
-    context = retrieve_memory(user_message)
+    # Retrieve document memory (run in thread pool)
+    loop = asyncio.get_event_loop()
+    context = await loop.run_in_executor(executor, retrieve_memory, user_message)
 
     messages = [
         {"role": "system", "content": "You are REBOT AI, a helpful assistant."},
@@ -106,8 +135,8 @@ async def chat(data: dict):
     except Exception as e:
         reply = f"Error: {str(e)}"
 
-    # Store conversation memory locally
-    store_memory(user_message + " " + reply)
+    # Store conversation memory locally (run in thread pool, don't await)
+    loop.run_in_executor(executor, store_memory, user_message + " " + reply)
 
     # Store chat history in Supabase
     sb = get_supabase()
@@ -179,12 +208,13 @@ async def upload(file: UploadFile = File(...)):
     # Limit large files
     text = text[:20000]
 
-    # Store file text in RAG memory
+    # Store file text in RAG memory (run in thread pool)
     chunk_size = 500
+    loop = asyncio.get_event_loop()
 
     for i in range(0, len(text), chunk_size):
         chunk = text[i:i+chunk_size]
-        store_memory(chunk)
+        await loop.run_in_executor(executor, store_memory, chunk)
     
     DOCUMENT_CONTEXT = text
 
