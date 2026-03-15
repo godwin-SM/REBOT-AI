@@ -1,84 +1,114 @@
-# REBOT AI - Size-Optimized AI Assistant
+# 🤖 REBOT AI - Lightweight AI Chat Assistant
 
-A lightweight, AI-powered chat assistant with document upload and semantic memory. **Optimized to fit within 500MB deployment limit.**
+An AI-powered chat application with document upload, semantic search, and user authentication. Built for speed and efficiency with a ~450MB deployment footprint.
 
-## 🚀 Features
+## 🎯 What is REBOT AI?
 
-✅ **AI-Powered Chat** - Intelligent responses via OpenRouter API  
-✅ **Document Memory** - Upload PDFs, DOCX, TXT files and ask questions about them  
-✅ **Semantic Search** - Uses lightweight embedding model for context retrieval  
-✅ **Persistent Storage** - ChromaDB vector database + Supabase backend  
-✅ **Sub-500MB Footprint** - Optimized for fast deployment and minimal resources  
+A conversational AI assistant that lets users:
+- Chat with an intelligent AI powered by OpenRouter API
+- Upload documents (PDF, DOCX, TXT) and ask questions about them
+- Get context-aware responses using semantic search
+- Save chat history and documents securely
 
-## 📦 Size Optimizations
+## 🚀 Key Features
 
-### What We Optimized
-- **Replaced PyTorch** (~500MB) with **ONNX Runtime** (~100MB)
-- **Smaller embedding model** - `multi-qa-MiniLM-L6-cos-v1` (~80MB) instead of `all-MiniLM-L6-v2` (~140MB)
-- **Python 3.12-slim base** - Removes unnecessary system libraries
-- **Removed unused dependencies** - Streamlined requirements.txt
+- 💬 **AI Chat** - Real-time conversation with OpenRouter API
+- 📄 **Document Upload** - Extract and search from PDFs, Word docs, and text files
+- 🔍 **Semantic Search** - Smart retrieval of relevant document content
+- 🔐 **Google OAuth** - Secure user authentication
+- 👥 **Multi-user Support** - Isolated sessions for each user
+- 📱 **Mobile-Friendly** - Responsive design with PWA support
+- ⚡ **Lightweight** - Only ~450MB for deployment
 
-### Deployment Size Breakdown
-```
-FastAPI + Uvicorn         ~50 MB
-Python base dependencies  ~150 MB
-Embedding model          ~80 MB (multi-qa-MiniLM-L6-cos-v1)
-ONNX Runtime             ~100 MB
-ChromaDB                 ~30 MB
-Document parsing (pypdf) ~20 MB
-Source + Static files    ~20 MB
-────────────────────────────────
-Total:                   ~450 MB ✅
-```
+## 🛠️ Tech Stack
 
-## 🛠️ Installation
+- **Backend:** FastAPI, Uvicorn, ChromaDB (vector database)
+- **Frontend:** HTML, CSS, JavaScript (vanilla, no frameworks)
+- **AI:** Sentence-Transformers (embeddings), OpenRouter (LLM API)
+- **Auth:** Google OAuth 2.0, JWT tokens
+- **Cloud:** Supabase (optional), Docker-ready
 
-### Local Development
+## 📦 Quick Setup
+
+### 1. Install
 ```bash
-# Create virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
+source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-# Setup environment
-cp .env.example .env
-# Edit .env with your API keys:
-# - OPENROUTER_API_KEY
-# - SUPABASE_URL
-# - SUPABASE_KEY
-
-# Run server
-python -m uvicorn app:app --reload
 ```
 
-### Docker Deployment
+### 2. Configure
 ```bash
-# Build image (optimized multi-stage build)
-docker build -t rebot-ai .
+cp .env.example .env
+```
+Add to `.env`:
+```env
+OPENROUTER_API_KEY=your_api_key
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_key
+```
 
-# Run container
+### 3. Run
+```bash
+python app.py
+# Open http://localhost:8000
+```
+
+## 📁 Project Structure
+
+```
+rebot-ai/
+├── app.py              # Main FastAPI application
+├── auth.py            # Google OAuth & JWT
+├── rag.py             # Semantic search & embeddings
+├── requirements.txt   # Dependencies
+├── Dockerfile         # Docker setup
+├── static/
+│   ├── index.html     # UI
+│   ├── style.css
+│   └── script.js
+├── uploads/           # User uploaded files
+└── vector_db/         # Local vector database
+```
+
+## 🚀 Deployment
+
+### Docker
+```bash
+docker build -t rebot-ai .
 docker run -p 8000:8000 \
   -e OPENROUTER_API_KEY=your_key \
-  -e SUPABASE_URL=your_url \
-  -e SUPABASE_KEY=your_key \
   rebot-ai
 ```
 
-### Deploy to Render
-```bash
-# Push to GitHub
-git push origin main
+### Cloud (Render, Railway, etc.)
+1. Push to GitHub
+2. Connect to deployment platform
+3. Set environment variables
+4. Deploy
 
-# On Render.com:
-1. Connect GitHub repository
-2. Set environment variables:
-   - OPENROUTER_API_KEY
-   - SUPABASE_URL
-   - SUPABASE_KEY
-3. Deploy using render.yaml configuration
-```
+## 📚 API Endpoints
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/` | GET | Web interface |
+| `/api/chat` | POST | Send chat message |
+| `/api/upload` | POST | Upload document |
+| `/auth/google` | POST | Google login |
+
+## 🔐 Authentication
+
+Uses Google OAuth 2.0 for secure login. JWT tokens are generated for API access.
+
+## 📖 For More Details
+
+- See `AUTHENTICATION.md` for auth setup
+- See `DEPLOYMENT.md` for deployment specifics
+- See `DATABASE_SETUP.sql` for Supabase schema
+
+---
+
+**Ready to use!** Install dependencies and run `python app.py` to get started.
 
 ## 📖 API Endpoints
 
@@ -116,34 +146,6 @@ OPENROUTER_API_KEY=your_api_key           # For AI responses
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_KEY=your_anon_key                 # For data storage
 ```
-
-### Performance Tuning
-The app is pre-optimized, but you can adjust:
-
-- **Model loading**: Happens at startup (configurable in `rag.py`)
-- **ChromaDB persistence**: Stored in `vector_db/` directory
-- **Max file size**: 20,000 characters (configurable in `app.py`)
-- **Memory chunks**: 500 characters (configurable in `app.py`)
-
-## 🧪 Testing
-
-```bash
-# Run comprehensive tests
-python test_optimized.py
-
-# Check deployment size
-python check_size.py
-
-# Direct API testing
-python comprehensive_test.py
-```
-
-## 📊 Performance
-
-- **Startup time**: ~8-12 seconds (models preload at startup)
-- **Chat response time**: 1-3 seconds (depends on OpenRouter API)
-- **Memory per request**: ~50MB
-- **Concurrent users**: Tested up to 10 simultaneous connections
 
 ## 🔧 Architecture
 
@@ -193,49 +195,5 @@ python comprehensive_test.py
 - Supabase for backup and persistence
 - Automatic memory retrieval during chat
 
-## 🚨 Troubleshooting
-
-### Models taking too long to load?
-- Models preload at startup (~10s first time)
-- Subsequent requests use cached models
-- Internet connection required for first download
-
-### `ModuleNotFoundError: No module named 'X'`
-```bash
-pip install -r requirements.txt
-```
-
-### Size exceeds 500MB?
-Check what's using space:
-```bash
-python check_size.py
-```
-
-Common issues:
-- `.git` folder included (add to `.gitignore`)
-- `vector_db/` data accumulated (delete and rebuild)
-- `uploads/` files (delete old uploads)
-
-## 📈 Scalability
-
-To scale beyond current limits:
-1. Use Embed Cache for embeddings (avoid recomputing)
-2. Implement request queuing for concurrent chat
-3. Use CDN for static files
-4. Consider using Pinecone for distributed vector search
-
-## 📄 License
-
-MIT License - See LICENSE file
-
-## 🙋 Support
-
-Issues? Check:
-1. `.env` file has correct API keys
-2. Internet connection for model downloads
-3. Supabase credentials are valid
-4. Run `python check_size.py` to verify installation
-
----
 
 **🎯 Total Size: ~450MB** | **Status: ✅ Optimized**
