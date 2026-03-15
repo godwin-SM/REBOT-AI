@@ -223,6 +223,7 @@ border-color: #00ffcc;
 
 .msg-input {
 flex: 1;
+min-width: 0;
 padding: 10px 12px;
 border: 1px solid #444;
 border-radius: 6px;
@@ -233,6 +234,9 @@ transition: all 0.2s ease;
 min-height: 44px;
 -webkit-appearance: none;
 appearance: none;
+overflow: hidden;
+text-overflow: ellipsis;
+white-space: nowrap;
 }
 
 .msg-input:focus {
@@ -489,9 +493,10 @@ font-size:13px;
   }
 
   .attach-btn {
-    padding: 6px 8px;
-    min-width: 40px;
-    min-height: 40px;
+    padding: 8px 8px;
+    min-width: 44px;
+    min-height: 44px;
+    display: none;
   }
 
   .attach-btn svg {
@@ -503,17 +508,19 @@ font-size:13px;
     padding: 8px 8px;
     font-size: 13px;
     min-height: 40px;
+    max-width: 100%;
   }
 
   .send-btn {
-    padding: 6px 6px;
-    min-width: 36px;
+    padding: 6px 8px;
+    min-width: 40px;
     min-height: 40px;
+    flex-shrink: 0;
   }
 
   .input-area-container {
-    padding: 8px;
-    gap: 6px;
+    padding: 6px;
+    gap: 4px;
   }
 
   .send-btn svg {
@@ -563,31 +570,25 @@ font-size:13px;
 /* EXTRA SMALL SCREENS */
 @media (max-width: 359px) {
   .input-area-container {
-    padding: 6px;
-    gap: 4px;
+    padding: 4px;
+    gap: 3px;
   }
 
   .attach-btn {
-    min-width: 32px;
-    min-height: 36px;
-    padding: 4px 6px;
-  }
-
-  .attach-btn svg {
-    width: 16px;
-    height: 16px;
+    display: none;
   }
 
   .msg-input {
-    padding: 6px 8px;
+    padding: 6px 6px;
     font-size: 12px;
     min-height: 36px;
   }
 
   .send-btn {
-    min-width: 32px;
+    min-width: 36px;
     min-height: 36px;
     padding: 4px 6px;
+    flex-shrink: 0;
   }
 
   .send-btn svg {
