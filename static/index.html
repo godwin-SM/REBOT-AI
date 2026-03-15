@@ -500,15 +500,20 @@ font-size:13px;
   }
 
   .msg-input {
-    padding: 8px 10px;
+    padding: 8px 8px;
     font-size: 13px;
     min-height: 40px;
   }
 
   .send-btn {
-    padding: 6px 8px;
-    min-width: 40px;
+    padding: 6px 6px;
+    min-width: 36px;
     min-height: 40px;
+  }
+
+  .input-area-container {
+    padding: 8px;
+    gap: 6px;
   }
 
   .send-btn svg {
@@ -552,6 +557,42 @@ font-size:13px;
 
   #loader p {
     font-size: 12px;
+  }
+}
+
+/* EXTRA SMALL SCREENS */
+@media (max-width: 359px) {
+  .input-area-container {
+    padding: 6px;
+    gap: 4px;
+  }
+
+  .attach-btn {
+    min-width: 32px;
+    min-height: 36px;
+    padding: 4px 6px;
+  }
+
+  .attach-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .msg-input {
+    padding: 6px 8px;
+    font-size: 12px;
+    min-height: 36px;
+  }
+
+  .send-btn {
+    min-width: 32px;
+    min-height: 36px;
+    padding: 4px 6px;
+  }
+
+  .send-btn svg {
+    width: 14px;
+    height: 14px;
   }
 }
 
