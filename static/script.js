@@ -257,6 +257,7 @@ window.onload = function() {
     const name = localStorage.getItem("userName");
     setUserAvatar(picture, name);
     loadChatHistory();
+    initializeFileUpload();
   } else {
     // Initialize Google Sign-In
     initGoogleSignIn();
@@ -377,141 +378,273 @@ function addMessage(role, content) {
 // SEND MESSAGE
 async function send() {
   let msg = msgInput.value.trim();
-
-  if (msg === "") return;
-
-  addMessage("user", msg);
-  msgInput.value = "";
-  chat.scrollTop = chat.scrollHeight;
-
-  // typing indicator
-  let typing = document.createElement("div");
-  typing.className = "message bot";
-  typing.id = "typing";
-  typing.innerHTML = '<div class="loading-spinner"></div>REBOT is thinking...';
-  chat.appendChild(typing);
-  chat.scrollTop = chat.scrollHeight;
-
-  let history = JSON.parse(localStorage.getItem("chat")) || [];
   
-  // Save user message to localStorage immediately (for offline support)
-  history.push({
-    role: "user",
-    content: msg
-  });
-  localStorage.setItem("chat", JSON.stringify(history));
+  // Check if there's a message or attached files
+  if (msg === "" && attachedFiles.length === 0) {
+    alert("Please type a message or attach a file");
+    return;
+  }
 
   try {
-    const response = await fetch("/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${getToken()}`
-      },
-      body: JSON.stringify({
-        message: msg,
-        history: history
-      })
-    });
-
-    const data = await response.json();
-
-    // remove typing
-    let typingEl = document.getElementById("typing");
-    if (typingEl) typingEl.remove();
-
-    let botReply = "";
-    if (data.success) {
-      botReply = data.reply;
-      addMessage("bot", botReply);
-    } else {
-      botReply = "⚠️ " + (data.error || "Error: Could not get response");
-      addMessage("bot", botReply);
-      if (response.status === 401) {
-        handleLogout();
-      }
+    // Upload attached files first (if any)
+    if (attachedFiles.length > 0) {
+      const fileCount = attachedFiles.length;
+      addMessage("user", `📎 Attaching ${fileCount} file(s)...`);
+      chat.scrollTop = chat.scrollHeight;
+      
+      await uploadAttachedFiles();
+      
+      // Small delay to ensure files are processed
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    chat.scrollTop = chat.scrollHeight;
+    // If there's a message, send it
+    if (msg !== "") {
+      addMessage("user", msg);
+      msgInput.value = "";
+      chat.scrollTop = chat.scrollHeight;
 
-    // Save bot reply to history and localStorage
-    history.push({
-      role: "bot",
-      content: botReply
-    });
-    localStorage.setItem("chat", JSON.stringify(history));
+      // typing indicator
+      let typing = document.createElement("div");
+      typing.className = "message bot";
+      typing.id = "typing";
+      typing.innerHTML = '<div class="loading-spinner"></div>REBOT is thinking...';
+      chat.appendChild(typing);
+      chat.scrollTop = chat.scrollHeight;
 
+      let history = JSON.parse(localStorage.getItem("chat")) || [];
+      
+      // Save user message to localStorage immediately (for offline support)
+      history.push({
+        role: "user",
+        content: msg
+      });
+      localStorage.setItem("chat", JSON.stringify(history));
+
+      try {
+        const response = await fetch("/chat", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${getToken()}`
+          },
+          body: JSON.stringify({
+            message: msg,
+            history: history
+          })
+        });
+
+        const data = await response.json();
+
+        // remove typing
+        let typingEl = document.getElementById("typing");
+        if (typingEl) typingEl.remove();
+
+        let botReply = "";
+        if (data.success) {
+          botReply = data.reply;
+          addMessage("bot", botReply);
+        } else {
+          botReply = "⚠️ " + (data.error || "Error: Could not get response");
+          addMessage("bot", botReply);
+          if (response.status === 401) {
+            handleLogout();
+          }
+        }
+
+        chat.scrollTop = chat.scrollHeight;
+
+        // Save bot reply to history and localStorage
+        history.push({
+          role: "bot",
+          content: botReply
+        });
+        localStorage.setItem("chat", JSON.stringify(history));
+
+      } catch (err) {
+        let typingEl = document.getElementById("typing");
+        if (typingEl) typingEl.remove();
+
+        const errorMsg = "⚠️ Error connecting to server: " + err.message;
+        chat.innerHTML += `<div class="message bot">${errorMsg}</div>`;
+        
+        // Save error message to localStorage
+        let history = JSON.parse(localStorage.getItem("chat")) || [];
+        history.push({
+          role: "bot",
+          content: errorMsg
+        });
+        localStorage.setItem("chat", JSON.stringify(history));
+      }
+    }
   } catch (err) {
-    let typingEl = document.getElementById("typing");
-    if (typingEl) typingEl.remove();
-
-    const errorMsg = "⚠️ Error connecting to server.";
-    chat.innerHTML += `<div class="message bot">${errorMsg}</div>`;
-    
-    // Save error message to localStorage
-    history.push({
-      role: "bot",
-      content: errorMsg
-    });
-    localStorage.setItem("chat", JSON.stringify(history));
+    console.error("Error in send():", err);
+    alert("An error occurred. Please try again.");
   }
 }
 
 // FILE UPLOAD
-async function uploadFile() {
-  let file = document.getElementById("fileUpload").files[0];
+// ========================
+// FILE ATTACHMENT HANDLING
+// ========================
 
-  if (!file) {
-    alert("Please select a file");
+let attachedFiles = []; // Store files to upload
+
+function initializeFileUpload() {
+  const attachBtn = document.getElementById("attachBtn");
+  const fileInput = document.getElementById("fileUpload");
+
+  if (!attachBtn || !fileInput) return;
+
+  // Click to attach
+  attachBtn.addEventListener("click", () => fileInput.click());
+
+  // File input change
+  fileInput.addEventListener("change", (e) => {
+    handleFileSelection(e.target.files);
+  });
+
+  // Drag and drop on chat area
+  const chat = document.getElementById("chat");
+  if (chat) {
+    chat.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      chat.style.borderTop = "2px solid #00ffcc";
+    });
+
+    chat.addEventListener("dragleave", () => {
+      chat.style.borderTop = "none";
+    });
+
+    chat.addEventListener("drop", (e) => {
+      e.preventDefault();
+      chat.style.borderTop = "none";
+      handleFileSelection(e.dataTransfer.files);
+    });
+  }
+}
+
+function getFileIcon(filename) {
+  const ext = filename.toLowerCase().split(".").pop();
+  switch (ext) {
+    case "pdf":
+      return "PDF";
+    case "docx":
+      return "DOCX";
+    case "txt":
+      return "TXT";
+    default:
+      return "FILE";
+  }
+}
+
+function getFileTypeClass(filename) {
+  const ext = filename.toLowerCase().split(".").pop();
+  return ext || "file";
+}
+
+function handleFileSelection(files) {
+  if (files.length === 0) return;
+
+  for (let file of files) {
+    // Validate file type
+    const ext = file.name.toLowerCase().split(".").pop();
+    if (!["pdf", "docx", "txt"].includes(ext)) {
+      alert(`⚠️ Unsupported file type: ${ext}. Please use PDF, DOCX, or TXT files.`);
+      continue;
+    }
+
+    // Validate file size (50MB)
+    if (file.size > 50 * 1024 * 1024) {
+      alert(`⚠️ File too large: ${file.name}. Maximum size is 50MB.`);
+      continue;
+    }
+
+    // Check if file already attached
+    if (attachedFiles.some(f => f.name === file.name)) {
+      alert(`⚠️ File already attached: ${file.name}`);
+      continue;
+    }
+
+    // Add to attached files list
+    attachedFiles.push(file);
+    displayAttachedFile(file);
+  }
+
+  // Reset file input
+  document.getElementById("fileUpload").value = "";
+}
+
+function displayAttachedFile(file) {
+  const preview = document.getElementById("attachedFilesPreview");
+  if (!preview) {
+    console.error("attachedFilesPreview element not found");
     return;
   }
 
-  let formData = new FormData();
-  formData.append("file", file);
+  const fileId = "attach-" + Date.now() + Math.random();
 
-  addMessage("user", `📎 Uploading: ${file.name}`);
-  chat.scrollTop = chat.scrollHeight;
+  const fileEl = document.createElement("div");
+  fileEl.className = "attached-file";
+  fileEl.id = fileId;
+  fileEl.innerHTML = `
+    <div class="file-icon ${getFileTypeClass(file.name)}">
+      ${getFileIcon(file.name)}
+    </div>
+    <div class="file-name" title="${file.name}">${file.name}</div>
+    <button class="remove-file" onclick="removeAttachedFile('${fileId}', '${file.name}')" title="Remove">✕</button>
+  `;
 
-  try {
-    const res = await fetch("/upload", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${getToken()}`
-      },
-      body: formData
-    });
+  preview.appendChild(fileEl);
+}
 
-    const data = await res.json();
-
-    if (data.success) {
-      addMessage("bot", data.reply);
-    } else {
-      addMessage("bot", "⚠️ " + (data.error || "Upload failed"));
-      if (res.status === 401) {
-        handleLogout();
-      }
-    }
-
-    chat.scrollTop = chat.scrollHeight;
-
-    let history = JSON.parse(localStorage.getItem("chat")) || [];
-
-    history.push({
-      role: "user",
-      content: `📎 Uploaded: ${file.name}`
-    });
-
-    history.push({
-      role: "bot",
-      content: data.reply || data.error
-    });
-
-    localStorage.setItem("chat", JSON.stringify(history));
-    
-    // Reset file input
-    document.getElementById("fileUpload").value = "";
-
-  } catch (err) {
-    chat.innerHTML += `<div class="message bot">⚠️ Upload failed.</div>`;
+function removeAttachedFile(fileId, fileName) {
+  const fileEl = document.getElementById(fileId);
+  if (fileEl) {
+    fileEl.remove();
   }
+  attachedFiles = attachedFiles.filter(f => f.name !== fileName);
+}
+
+async function uploadAttachedFiles() {
+  if (attachedFiles.length === 0) return [];
+
+  const results = [];
+
+  for (let file of attachedFiles) {
+    let formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const res = await fetch("/upload", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${getToken()}`
+        },
+        body: formData
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        results.push({ success: true, filename: file.name });
+        addMessage("bot", `✅ Document '${file.name}' has been added to my knowledge base.`);
+      } else {
+        results.push({ success: false, filename: file.name, error: data.error });
+        addMessage("bot", `⚠️ Error uploading ${file.name}: ${data.error || "Unknown error"}`);
+      }
+    } catch (err) {
+      results.push({ success: false, filename: file.name, error: err.message });
+      addMessage("bot", `⚠️ Error uploading ${file.name}: ${err.message}`);
+    }
+  }
+
+  // Clear attached files after upload
+  attachedFiles = [];
+  const preview = document.getElementById("attachedFilesPreview");
+  if (preview) {
+    preview.innerHTML = "";
+  }
+
+  return results;
 }

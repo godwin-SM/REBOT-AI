@@ -317,40 +317,85 @@ async def upload(file: UploadFile = File(...), authorization: Optional[str] = He
     loop = asyncio.get_event_loop()
     
     def process_file(filepath_arg, filename_arg):
-        """Process file and extract text"""
+        """Process file and extract text with better error handling"""
         text = ""
         filename = filename_arg.lower()
 
         try:
-            # TXT
+            # TXT Files
             if filename.endswith(".txt"):
-                with open(filepath_arg, "r", encoding="utf-8") as f:
-                    text = f.read()
+                try:
+                    # Try UTF-8 first
+                    with open(filepath_arg, "r", encoding="utf-8") as f:
+                        text = f.read()
+                except UnicodeDecodeError:
+                    # Fallback to latin-1 if UTF-8 fails
+                    with open(filepath_arg, "r", encoding="latin-1") as f:
+                        text = f.read()
 
-            # PDF
+            # PDF Files
             elif filename.endswith(".pdf"):
-                reader = PdfReader(filepath_arg)
-                for page in reader.pages:
-                    page_text = page.extract_text()
-                    if page_text:
-                        text += page_text + "\n"
+                try:
+                    reader = PdfReader(filepath_arg)
+                    if len(reader.pages) == 0:
+                        raise Exception("PDF file is empty or corrupted")
+                    
+                    for page in reader.pages:
+                        page_text = page.extract_text()
+                        if page_text:
+                            text += page_text + "\n"
+                except Exception as e:
+                    raise Exception(f"Error reading PDF: {str(e)}")
 
-            # DOCX
+            # DOCX Files
             elif filename.endswith(".docx"):
-                doc = Document(filepath_arg)
-                for para in doc.paragraphs:
-                    text += para.text + "\n"
+                try:
+                    doc = Document(filepath_arg)
+                    
+                    # Extract text from paragraphs
+                    for para in doc.paragraphs:
+                        if para.text.strip():
+                            text += para.text + "\n"
+                    
+                    # Extract text from tables
+                    for table in doc.tables:
+                        for row in table.rows:
+                            for cell in row.cells:
+                                if cell.text.strip():
+                                    text += cell.text + " | "
+                            if row != table.rows[-1]:
+                                text += "\n"
+                        text += "\n"
+                    
+                    # Extract text from headers and footers
+                    for section in doc.sections:
+                        # Headers
+                        for para in section.header.paragraphs:
+                            if para.text.strip():
+                                text += "[HEADER] " + para.text + "\n"
+                        # Footers
+                        for para in section.footer.paragraphs:
+                            if para.text.strip():
+                                text += "[FOOTER] " + para.text + "\n"
+                    
+                except Exception as e:
+                    raise Exception(f"Error reading DOCX: {str(e)}")
 
             else:
-                raise ValueError("Unsupported file type.")
+                raise ValueError(f"Unsupported file type: {filename_arg}. Supported types: PDF, DOCX, TXT")
 
         except Exception as e:
-            raise Exception(f"Error reading file: {str(e)}")
+            raise Exception(f"Error processing file: {str(e)}")
 
-        if text.strip() == "":
+        # Clean up text
+        text = text.strip()
+        if text == "":
             raise Exception("No readable text found in this file.")
 
-        return text[:20000]  # Limit to 20k characters
+        # Log file stats
+        print(f"[DEBUG] Processed {filename_arg}: {len(text)} characters")
+        
+        return text[:50000]  # Increase limit to 50k characters for better context
 
     try:
         text = await loop.run_in_executor(executor, process_file, filepath, file.filename)
