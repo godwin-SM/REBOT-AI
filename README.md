@@ -1,32 +1,32 @@
 # 🤖 REBOT AI - Lightweight AI Chat Assistant
 
-An AI-powered chat application with document upload, semantic search, and user authentication. Built for speed and efficiency with a ~450MB deployment footprint.
+An AI-powered chat application with document upload, smart search, and user authentication. Built for efficiency with minimal memory footprint (~250MB).
 
 ## 🎯 What is REBOT AI?
 
 A conversational AI assistant that lets users:
 - Chat with an intelligent AI powered by OpenRouter API
 - Upload documents (PDF, DOCX, TXT) and ask questions about them
-- Get context-aware responses using semantic search
+- Get context-aware responses using recent text search
 - Save chat history and documents securely
 
 ## 🚀 Key Features
 
 - 💬 **AI Chat** - Real-time conversation with OpenRouter API
 - 📄 **Document Upload** - Extract and search from PDFs, Word docs, and text files
-- 🔍 **Semantic Search** - Smart retrieval of relevant document content
+- 🔍 **Smart Search** - Retrieve relevant document content and memory
 - 🔐 **Google OAuth** - Secure user authentication
 - 👥 **Multi-user Support** - Isolated sessions for each user
 - 📱 **Mobile-Friendly** - Responsive design with PWA support
-- ⚡ **Lightweight** - Only ~450MB for deployment
+- ⚡ **Ultra-Lightweight** - Only ~250MB for deployment (free Render tier compatible)
 
 ## 🛠️ Tech Stack
 
-- **Backend:** FastAPI, Uvicorn, ChromaDB (vector database)
+- **Backend:** FastAPI, Uvicorn, Supabase
 - **Frontend:** HTML, CSS, JavaScript (vanilla, no frameworks)
-- **AI:** Sentence-Transformers (embeddings), OpenRouter (LLM API)
+- **AI:** OpenRouter (LLM API)
 - **Auth:** Google OAuth 2.0, JWT tokens
-- **Cloud:** Supabase (optional), Docker-ready
+- **Cloud:** Supabase (database), Docker-ready
 
 ## 📦 Quick Setup
 
