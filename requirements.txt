@@ -1,8 +1,5 @@
 fastapi
 uvicorn[standard]
-chromadb
-sentence-transformers
-onnxruntime
 requests
 python-multipart
 pypdf

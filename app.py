@@ -62,15 +62,23 @@ DOCUMENT_CONTEXT = ""
 # ----------------------
 def get_user_id_from_header(authorization: Optional[str] = Header(None)) -> str:
     """Extract and verify user_id from Authorization header"""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+    if not authorization:
+        print("[DEBUG] No authorization header provided")
+        raise HTTPException(status_code=401, detail="Missing authorization header")
+    
+    if not authorization.startswith("Bearer "):
+        print(f"[DEBUG] Invalid authorization header format: {authorization[:30]}")
+        raise HTTPException(status_code=401, detail="Invalid authorization header format")
     
     token = authorization.replace("Bearer ", "")
+    print(f"[DEBUG] Extracted token (first 50 chars): {token[:50]}")
     user_id = get_user_from_token(token)
     
     if not user_id:
+        print(f"[DEBUG] Token validation failed for token: {token[:50]}...")
         raise HTTPException(status_code=401, detail="Invalid or expired token")
     
+    print(f"[DEBUG] Successfully authenticated user: {user_id}")
     return user_id
 
 # Serve static files

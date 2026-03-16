@@ -14,7 +14,7 @@ load_dotenv()
 # JWT Configuration (for our own tokens)
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-this-in-production")
 ALGORITHM = "HS256"
-TOKEN_EXPIRY_HOURS = 24
+TOKEN_EXPIRY_HOURS = 720  # 30 days (was 24 hours
 
 def create_access_token(user_id: str, email: str) -> dict:
     """Create access token for authenticated user"""
@@ -38,18 +38,26 @@ def verify_token(token: str) -> dict:
     """Verify and decode a JWT token"""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        print(f"[DEBUG] Token successfully verified. User ID: {payload.get('user_id')}")
         return payload
-    except jwt.ExpiredSignatureError:
+    except jwt.ExpiredSignatureError as e:
+        print(f"[DEBUG] Token has expired: {e}")
         raise Exception("Token has expired")
-    except jwt.InvalidTokenError:
-        raise Exception("Invalid token")
+    except jwt.InvalidTokenError as e:
+        print(f"[DEBUG] Invalid token error: {e}")
+        raise Exception(f"Invalid token: {str(e)}")
+    except Exception as e:
+        print(f"[DEBUG] Unexpected error verifying token: {e}")
+        raise
 
 def get_user_from_token(token: str) -> Optional[str]:
     """Extract user_id from token"""
     try:
         payload = verify_token(token)
         return payload.get("user_id")
-    except:
+    except Exception as e:
+        print(f"[DEBUG] Token verification failed: {str(e)}")
+        print(f"[DEBUG] Token (first 50 chars): {token[:50] if token else 'EMPTY'}")
         return None
 
 # ----------------------

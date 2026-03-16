@@ -74,27 +74,13 @@ def get_supabase():
 # STORE MEMORY
 # -----------------------
 def store_memory(text, user_id=None):
-
-    embedding = get_model().encode(text).tolist()
-
-    # Store in ChromaDB
-    coll = get_collection()
-    doc_id = f"{user_id}_{hash(text)}" if user_id else str(hash(text))
-    coll.add(
-        documents=[text],
-        embeddings=[embedding],
-        ids=[doc_id],
-        metadatas=[{"user_id": user_id}] if user_id else [{}]
-    )
-
-    # Store in Supabase
+    # Use Supabase only - removed ChromaDB and embedding model to save memory
     sb = get_supabase()
     if sb:
         try:
             sb.table("memory").insert({
                 "user_id": user_id,
-                "content": text,
-                "embedding": embedding
+                "content": text
             }).execute()
         except Exception as e:
             print("Supabase error:", e)
@@ -104,25 +90,20 @@ def store_memory(text, user_id=None):
 # RETRIEVE MEMORY
 # -----------------------
 def retrieve_memory(query, user_id=None):
-
-    embedding = get_model().encode(query).tolist()
-
-    coll = get_collection()
+    # Use simple keyword search from Supabase - removed embedding lookup
+    sb = get_supabase()
+    if not sb:
+        return ""
     
-    # Query ChromaDB with user filter
-    if user_id:
-        results = coll.query(
-            query_embeddings=[embedding],
-            n_results=3,
-            where={"user_id": user_id}
-        )
-    else:
-        results = coll.query(
-            query_embeddings=[embedding],
-            n_results=3
-        )
-
-    if results["documents"] and len(results["documents"][0]) > 0:
-        return "\n".join(results["documents"][0])
-
-    return ""
+    try:
+        # Simple text search - retrieve recent memory entries
+        result = sb.table("memory").select("content").eq("user_id", user_id).order("id", desc=True).limit(5).execute()
+        
+        if result and hasattr(result, 'data') and result.data:
+            # Return last 5 memory entries as context
+            return "\n".join([row.get("content", "") for row in result.data])
+        
+        return ""
+    except Exception as e:
+        print(f"Memory retrieval error: {e}")
+        return ""
