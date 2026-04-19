@@ -7,6 +7,7 @@ from docx import Document
 import requests
 import os
 import asyncio
+import re
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 from concurrent.futures import ThreadPoolExecutor
@@ -15,8 +16,8 @@ from typing import Optional
 # Load environment variables from .env (e.g., SUPABASE_URL / SUPABASE_KEY)
 load_dotenv()
 
-# Import rag functions (they are now lazy-loaded internally)
-from rag import store_memory, retrieve_memory, get_model, get_collection
+# Import rag functions
+from rag import store_memory, retrieve_memory
 from auth import verify_token, get_user_from_token, get_or_create_google_user, get_user_by_id
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
@@ -56,6 +57,42 @@ def get_supabase():
 app = FastAPI(lifespan=lifespan, title="REBOT AI")
 
 DOCUMENT_CONTEXT = ""
+
+
+def extract_preferred_name(text: str) -> Optional[str]:
+    """Extract a user-preferred name from natural phrases like 'call me X'."""
+    if not text:
+        return None
+
+    patterns = [
+        r"\bmy name is\s+([A-Za-z][A-Za-z\s'\-]{0,40}?)(?:[\.!?,]|$)",
+        r"\bcall me\s+([A-Za-z][A-Za-z\s'\-]{0,40}?)(?:[\.!?,]|$)",
+        r"\bi am\s+([A-Za-z][A-Za-z\s'\-]{0,40}?)(?:[\.!?,]|$)",
+        r"\bi'm\s+([A-Za-z][A-Za-z\s'\-]{0,40}?)(?:[\.!?,]|$)",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, text, flags=re.IGNORECASE)
+        if match:
+            name = match.group(1).strip(" .,!?:;\"'")
+            name = re.sub(r"\b(please|pls|now|again)\b$", "", name, flags=re.IGNORECASE).strip()
+            # Keep only likely short names/titles, avoid full sentences.
+            if 1 <= len(name.split()) <= 3:
+                return name
+    return None
+
+
+def is_name_question(text: str) -> bool:
+    """Return True when the user asks to recall their name."""
+    if not text:
+        return False
+    patterns = [
+        r"\bwhat(?:'s| is) my name\b",
+        r"\brepeat my name\b",
+        r"\bsay my name\b",
+        r"\bdo you know my name\b",
+    ]
+    return any(re.search(p, text, flags=re.IGNORECASE) for p in patterns)
 
 # ----------------------
 # AUTHENTICATION HELPER
@@ -173,10 +210,70 @@ async def chat(data: dict, authorization: Optional[str] = Header(None)):
     except HTTPException as e:
         return {"success": False, "error": e.detail}
 
+    # Load authenticated user profile so the model can answer identity questions.
+    user_profile = get_user_by_id(user_id) or {}
+    user_name = user_profile.get("name") or ""
+    user_email = user_profile.get("email") or ""
+
     user_message = data.get("message")
 
     if not user_message:
         return {"success": False, "error": "Please send a message."}
+
+    # Deterministically update preferred name when user explicitly sets it.
+    preferred_name_from_message = extract_preferred_name(user_message)
+    if preferred_name_from_message:
+        user_name = preferred_name_from_message
+        sb = get_supabase()
+        if sb:
+            try:
+                sb.table("users").update({"name": user_name}).eq("id", str(user_id)).execute()
+            except Exception as e:
+                print(f"[WARN] Failed to persist preferred name: {e}")
+
+        reply = f"Understood. I will call you {user_name}."
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(executor, store_memory, user_message + " " + reply, user_id)
+
+        def save_name_chat_to_db():
+            sb_local = get_supabase()
+            if sb_local:
+                try:
+                    sb_local.table("chat_history").insert({
+                        "user_id": str(user_id),
+                        "user_message": user_message,
+                        "bot_reply": reply
+                    }).execute()
+                except Exception as e:
+                    print(f"[ERROR] Failed to save name update chat: {e}")
+
+        loop.run_in_executor(executor, save_name_chat_to_db)
+        return {"success": True, "reply": reply}
+
+    # Deterministically answer name-recall prompts.
+    if is_name_question(user_message):
+        if user_name:
+            reply = f"Your name is {user_name}."
+        else:
+            reply = "I do not have your name yet. Tell me using 'call me <name>'."
+
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(executor, store_memory, user_message + " " + reply, user_id)
+
+        def save_name_query_chat_to_db():
+            sb_local = get_supabase()
+            if sb_local:
+                try:
+                    sb_local.table("chat_history").insert({
+                        "user_id": str(user_id),
+                        "user_message": user_message,
+                        "bot_reply": reply
+                    }).execute()
+                except Exception as e:
+                    print(f"[ERROR] Failed to save name query chat: {e}")
+
+        loop.run_in_executor(executor, save_name_query_chat_to_db)
+        return {"success": True, "reply": reply}
 
     # Retrieve document memory for this user (run in thread pool to avoid blocking)
     loop = asyncio.get_event_loop()
@@ -188,8 +285,22 @@ async def chat(data: dict, authorization: Optional[str] = Header(None)):
     except asyncio.TimeoutError:
         context = ""
 
+    # Prefer the user's explicitly provided name in conversation over OAuth profile name.
+    preferred_name = extract_preferred_name(context)
+    display_name = preferred_name or user_name
+
     messages = [
         {"role": "system", "content": "You are REBOT AI, a helpful assistant."},
+        {
+            "role": "system",
+            "content": (
+                "Authenticated user profile (trusted context): "
+                f"name={user_name}, email={user_email}. "
+                f"Preferred name from conversation={display_name}. "
+                "If the user asks about their own name, prioritize Preferred name from conversation. "
+                "Use profile name only when no preferred name is available."
+            )
+        },
         {"role": "system", "content": f"Document content:\n{DOCUMENT_CONTEXT[:4000]}"},
         {"role": "system", "content": f"Relevant memory:\n{context}"},
         {"role": "user", "content": user_message}

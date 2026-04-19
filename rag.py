@@ -5,52 +5,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # -----------------------
-# EMBEDDING MODEL (Lazy Load)
-# -----------------------
-model = None
-
-def get_model():
-    global model
-    if model is None:
-        try:
-            from sentence_transformers import SentenceTransformer
-            print("Loading lightweight embedding model...")
-            # Use smaller model: ~80MB instead of 140MB
-            # This model is optimized for speed and size while maintaining quality
-            model = SentenceTransformer(
-                "multi-qa-MiniLM-L6-cos-v1",
-                device="cpu"
-            )
-            print("Embedding model loaded successfully")
-        except Exception as e:
-            print(f"Error loading embedding model: {e}")
-            raise
-    return model
-
-# -----------------------
-# CHROMA VECTOR DB (Lazy Load - Persistent)
-# -----------------------
-client = None
-collection = None
-
-def get_collection():
-    global client, collection
-    if client is None:
-        try:
-            import chromadb
-            from chromadb.config import Settings
-            print("Initializing ChromaDB...")
-            client = chromadb.Client(
-                Settings(persist_directory="vector_db")
-            )
-            collection = client.get_or_create_collection("rebot_memory")
-            print("ChromaDB initialized successfully")
-        except Exception as e:
-            print(f"Error initializing ChromaDB: {e}")
-            raise
-    return collection
-
-# -----------------------
 # SUPABASE CONNECTION
 # -----------------------
 SUPABASE_URL = os.getenv("SUPABASE_URL")

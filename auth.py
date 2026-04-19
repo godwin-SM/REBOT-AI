@@ -72,8 +72,10 @@ def verify_google_token(token: str) -> dict:
     try:
         from google.auth.transport import requests
         from google.oauth2 import id_token
+        import socket
+        import time
         
-        # Google's public cert for verification
+        # Create request object for Google verification
         request = requests.Request()
         
         # Get Google's OAuth client ID from environment
@@ -81,27 +83,64 @@ def verify_google_token(token: str) -> dict:
         
         if not CLIENT_ID:
             raise Exception("GOOGLE_CLIENT_ID not configured in .env")
-        
-        # Verify token signature with Google's public keys
-        # Try with 'audience' parameter (newer versions)
-        try:
-            idinfo = id_token.verify_oauth2_token(
-                token, 
-                request, 
-                audience=CLIENT_ID
-            )
-        except TypeError:
-            # Fallback for older versions that use different parameter
-            idinfo = id_token.verify_oauth2_token(token, request)
-            # Verify the audience manually
-            if idinfo.get('aud') != CLIENT_ID:
-                raise Exception(f"Token audience mismatch. Expected {CLIENT_ID}, got {idinfo.get('aud')}")
+
+        cert_urls = [
+            "https://www.googleapis.com/oauth2/v1/certs",
+            "https://www.googleapis.com/oauth2/v3/certs"
+        ]
+
+        last_error = None
+        idinfo = None
+
+        # Retry with alternate cert endpoints to handle transient DNS issues.
+        for cert_url in cert_urls:
+            for attempt in range(2):
+                try:
+                    idinfo = id_token.verify_token(
+                        token,
+                        request,
+                        audience=CLIENT_ID,
+                        certs_url=cert_url
+                    )
+                    break
+                except Exception as e:
+                    last_error = e
+                    if attempt == 0:
+                        time.sleep(0.8)
+            if idinfo:
+                break
+
+        if not idinfo:
+            # Backward-compatible fallback for older google-auth APIs.
+            try:
+                idinfo = id_token.verify_oauth2_token(token, request, audience=CLIENT_ID)
+            except TypeError:
+                idinfo = id_token.verify_oauth2_token(token, request)
+
+        # Verify required Google claims after signature validation.
+        if idinfo.get("aud") != CLIENT_ID:
+            raise Exception(f"Token audience mismatch. Expected {CLIENT_ID}, got {idinfo.get('aud')}")
+
+        issuer = idinfo.get("iss")
+        if issuer not in ["accounts.google.com", "https://accounts.google.com"]:
+            raise Exception(f"Invalid token issuer: {issuer}")
+
+        if last_error and not idinfo:
+            raise last_error
         
         print(f"[DEBUG] Google token info keys: {list(idinfo.keys())}")
         print(f"[DEBUG] Google picture field: {idinfo.get('picture', 'NOT_PROVIDED')}")
         
         return idinfo
         
+    except socket.gaierror as e:
+        error_msg = f"Network error: Cannot reach Google's servers. Check your internet connection and firewall settings. Details: {str(e)}"
+        print(f"Google token verification error: {error_msg}")
+        raise Exception(error_msg)
+    except TimeoutError as e:
+        error_msg = f"Network timeout: Google's servers took too long to respond. Check your internet connection."
+        print(f"Google token verification error: {error_msg}")
+        raise Exception(error_msg)
     except Exception as e:
         print(f"Google token verification error: {e}")
         raise Exception(f"Invalid Google token: {str(e)}")
@@ -113,8 +152,8 @@ def verify_google_token(token: str) -> dict:
 def get_supabase():
     """Get Supabase client"""
     from supabase import create_client
-    SUPABASE_URL = os.getenv("SUPABASE_URL")
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+    SUPABASE_URL = (os.getenv("SUPABASE_URL") or "").strip()
+    SUPABASE_KEY = (os.getenv("SUPABASE_KEY") or "").strip()
     
     if not SUPABASE_URL or not SUPABASE_KEY:
         return None
@@ -192,8 +231,15 @@ def get_or_create_google_user(google_token: str, frontend_picture: str = None) -
         }
     
     except Exception as e:
-        print(f"Error in get_or_create_google_user: {e}")
-        return {"success": False, "error": str(e)}
+        error_text = str(e)
+        if "getaddrinfo failed" in error_text:
+            sb_url = (os.getenv("SUPABASE_URL") or "").strip()
+            error_text = (
+                "Supabase host could not be resolved (DNS error). "
+                f"Check SUPABASE_URL in .env and confirm the project still exists: {sb_url}"
+            )
+        print(f"Error in get_or_create_google_user: {error_text}")
+        return {"success": False, "error": error_text}
 
 def get_user_by_id(user_id: str) -> dict:
     """Fetch user details by ID"""
